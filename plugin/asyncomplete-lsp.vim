@@ -4,6 +4,8 @@ endif
 let g:asyncomplete_lsp_loaded = 1
 
 let s:servers = {} " { server_name: 1 }
+let s:keyword_patterns = {} " { server_name: pattern }
+let s:option_whitelist = ['whitelist', 'blacklist', 'priority', 'refresh_pattern']
 
 au User lsp_server_init call s:server_initialized()
 au User lsp_server_exit call s:server_exited()
@@ -22,15 +24,14 @@ function! s:server_initialized() abort
                     \ 'refresh_pattern': '\(\k\+$\|\.$\|>$\|:$\)',
                     \ }
                 let l:server = lsp#get_server_info(l:server_name)
-                if has_key(l:server, 'whitelist')
-                    let l:source_opt['whitelist'] = l:server['whitelist']
-                endif
-                if has_key(l:server, 'blacklist')
-                    let l:source_opt['blacklist'] = l:server['blacklist']
-                endif
-                if has_key(l:server, 'priority')
-                    let l:source_opt['priority'] = l:server['priority']
-                endif
+                let s:keyword_patterns[l:server_name] = get(l:server, 'keyword_pattern', '\w\+$')
+
+                for l:opt in s:option_whitelist
+                  if has_key(l:server, l:opt)
+                    let l:source_opt[l:opt] = l:server[l:opt]
+                  endif
+                endfor
+
                 call asyncomplete#register_source(l:source_opt)
                 let s:servers[l:server_name] = 1
             else
@@ -90,7 +91,7 @@ function! s:handle_completion(server_name, opt, ctx, data) abort
 
     let l:col = a:ctx['col']
     let l:typed = a:ctx['typed']
-    let l:kw = matchstr(l:typed, '\w\+$')
+    let l:kw = matchstr(l:typed, s:keyword_patterns[a:server_name])
     let l:kwlen = len(l:kw)
     let l:startcol = l:col - l:kwlen
 
